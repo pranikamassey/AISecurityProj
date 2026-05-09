@@ -1,0 +1,179 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  security-events: write   # upload SARIF to GitHub Security tab
+  pull-requests: write     # post summary comment on PRs
+
+jobs:
+  security-scan:
+    name: Run Security Scanner
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout — full history needed for git-diff on push events
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -----------------------------------------------------------------------
+      # 2. Python + dependency cache
+      # -----------------------------------------------------------------------
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # -----------------------------------------------------------------------
+      # 3. Scan
+      #    • Pull requests  → scan only changed files (faster, targeted)
+      #    • Push to main   → full scan of the repo
+      #    Always produce a SARIF file for the Security tab + an HTML artifact.
+      # -----------------------------------------------------------------------
+      - name: Scan changed files (pull request)
+        if: github.event_name == 'pull_request'
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          python scanner.py \
+            --git-diff \
+            --format sarif \
+            --output security-results.sarif \
+            --fail-on CRITICAL \
+            --severity LOW \
+            --no-cache
+        # Exit 1 on CRITICAL only for PRs — informational for lower severities.
+        # Remove --fail-on CRITICAL to block on HIGH as well.
+        continue-on-error: false
+
+      - name: Full scan (push to main)
+        if: github.event_name == 'push'
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: |
+          python scanner.py . \
+            --format sarif \
+            --output security-results.sarif \
+            --fail-on HIGH \
+            --severity LOW \
+            --no-cache
+        continue-on-error: false
+
+      # -----------------------------------------------------------------------
+      # 4. Also emit an HTML report for download (always, even on scan failure)
+      # -----------------------------------------------------------------------
+      - name: Generate HTML report
+        if: always()
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GITHUB_BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            python scanner.py --git-diff --format html --output security-report.html --severity LOW || true
+          else
+            python scanner.py . --format html --output security-report.html --severity LOW || true
+          fi
+
+      # -----------------------------------------------------------------------
+      # 5. Upload SARIF → GitHub Security tab (Code Scanning Alerts)
+      #    Findings appear inline on the PR diff and in the Security tab.
+      # -----------------------------------------------------------------------
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('security-results.sarif') != ''
+        with:
+          sarif_file: security-results.sarif
+          category: security-scanner
+
+      # -----------------------------------------------------------------------
+      # 6. Upload HTML report as a downloadable artifact
+      # -----------------------------------------------------------------------
+      - name: Upload HTML report artifact
+        uses: actions/upload-artifact@v4
+        if: always() && hashFiles('security-report.html') != ''
+        with:
+          name: security-report-${{ github.run_number }}
+          path: security-report.html
+          retention-days: 30
+
+      # -----------------------------------------------------------------------
+      # 7. Post a summary comment on the PR (new findings only)
+      # -----------------------------------------------------------------------
+      - name: Post PR summary comment
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let sarif = {};
+            try {
+              sarif = JSON.parse(fs.readFileSync('security-results.sarif', 'utf8'));
+            } catch (e) {
+              console.log('No SARIF file found, skipping comment');
+              return;
+            }
+
+            const results = sarif?.runs?.[0]?.results ?? [];
+            const counts = { error: 0, warning: 0, note: 0 };
+            for (const r of results) counts[r.level] = (counts[r.level] || 0) + 1;
+
+            const total = results.length;
+            const icon = counts.error > 0 ? '🔴' : counts.warning > 0 ? '🟡' : '🟢';
+            const status = counts.error > 0 ? 'CRITICAL/HIGH findings detected — review required'
+                         : counts.warning > 0 ? 'Medium findings detected'
+                         : 'No significant findings';
+
+            const body = [
+              `## ${icon} Security Scan Results`,
+              '',
+              `**${status}**`,
+              '',
+              `| Severity | Count |`,
+              `|---|---|`,
+              `| 🔴 Critical / High | ${counts.error} |`,
+              `| 🟡 Medium          | ${counts.warning} |`,
+              `| 🟢 Low             | ${counts.note} |`,
+              `| **Total**          | **${total}** |`,
+              '',
+              `Full findings are visible in the [Security tab](https://github.com/${{ github.repository }}/security/code-scanning) ` +
+              `and the [HTML report artifact](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).`,
+            ].join('\n');
+
+            // Update existing bot comment instead of creating a new one each run
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Security Scan Results')
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

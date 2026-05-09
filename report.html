@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Security Scan Report</title>
+<style>
+  :root {--bg:#0f172a;--surface:#1e293b;--border:#334155;--text:#f1f5f9;--muted:#94a3b8}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);padding:2rem}
+  h1{font-size:1.75rem;margin-bottom:.25rem}
+  .subtitle{color:var(--muted);font-size:.875rem;margin-bottom:2rem}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:2rem}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:.5rem;padding:1rem;text-align:center}
+  .stat .num{font-size:2rem;font-weight:700;line-height:1}
+  .stat .label{font-size:.75rem;color:var(--muted);margin-top:.25rem}
+  .file-card{background:var(--surface);border:1px solid var(--border);border-radius:.5rem;margin-bottom:1.5rem;overflow:hidden}
+  .file-header{padding:.75rem 1rem;background:#0f172a;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  .file-path{font-weight:600;font-size:.95rem;word-break:break-all}
+  .file-meta{font-size:.75rem;color:var(--muted);white-space:nowrap;margin-left:1rem}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{padding:.6rem 1rem;text-align:left;font-weight:600;color:var(--muted);border-bottom:1px solid var(--border)}
+  td{padding:.6rem 1rem;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;padding:.15rem .5rem;border-radius:.25rem;font-size:.75rem;font-weight:700;color:#fff}
+  .fix-cell{font-family:monospace;font-size:.8rem;white-space:pre-wrap;color:#86efac}
+  details summary{cursor:pointer;padding:.75rem 1rem;color:var(--muted);font-size:.85rem}
+  .no-findings{padding:1rem;color:#16a34a;font-style:italic}
+  .owasp{font-size:.72rem;color:var(--muted)}
+  .src-badge{font-size:.7rem;padding:.1rem .3rem;border-radius:.2rem;background:#334155}
+</style>
+</head>
+<body>
+<h1>Security Scan Report</h1>
+<div class="subtitle">Generated 2026-05-09 07:04 UTC · 1 file(s) · 10 finding(s)</div>
+
+<div class="summary-grid">
+<div class="stat"><div class="num" style="color:#f1f5f9">1</div><div class="label">Files Scanned</div></div>
+<div class="stat"><div class="num" style="color:#f1f5f9">10</div><div class="label">Total Findings</div></div>
+<div class="stat"><div class="num" style="color:#dc2626">2</div><div class="label">Critical</div></div>
+<div class="stat"><div class="num" style="color:#d97706">7</div><div class="label">High</div></div>
+<div class="stat"><div class="num" style="color:#2563eb">1</div><div class="label">Medium</div></div>
+<div class="stat"><div class="num" style="color:#16a34a">0</div><div class="label">Low</div></div>
+<div class="stat"><div class="num" style="color:#f1f5f9">1ms</div><div class="label">Scan Time</div></div>
+</div>
+
+<div class="file-card">
+  <div class="file-header">
+    <span class="file-path">vulnerable.py</span>
+    <span class="file-meta">Python · 1ms · risk 31 (cached)</span>
+  </div>
+  <table>
+<thead><tr>
+  <th>Severity</th><th>Type</th><th>Line</th><th>Description</th><th>OWASP</th><th>Fix</th><th>Src</th>
+</tr></thead>
+<tbody><tr><td><span class="badge" style="background:#dc2626">CRITICAL</span></td><td><strong>Command Injection</strong></td><td>16</td><td>os.system() passes unsanitized input directly to the shell.</td><td><div class="owasp">A03:2021 – Injection</div></td><td><details><summary>Show fix</summary><div class="fix-cell">Use subprocess.run(['cmd', arg], shell=False) and validate/whitelist all inputs.</div></details></td><td><span class='src-badge'>🔬</span></td></tr>
+<tr><td><span class="badge" style="background:#dc2626">CRITICAL</span></td><td><strong>SQL Injection</strong></td><td>5</td><td>User-supplied username and password are directly concatenated into the SQL query string without proper sanitization or parameterization.</td><td><div class="owasp">A03:2021 – Injection</div></td><td><details><summary>Show fix</summary><div class="fix-cell">Use parameterized queries (e.g., cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))).</div></details></td><td><span class='src-badge'>🤖</span></td></tr>
+<tr><td><span class="badge" style="background:#d97706">HIGH</span></td><td><strong>Weak Cryptographic Hash</strong></td><td>12</td><td>hashlib.md5() is cryptographically broken; do not use for password hashing.</td><td><div class="owasp">A02:2021 – Cryptographic Failures</div></td><td><details><summary>Show fix</summary><div class="fix-cell">Use a proper password KDF: `from passlib.hash import argon2; argon2.hash(password)`</div></details></td><td><span class='src-badge'>🔬</span></td></tr>
+<tr><td><span class="badge" style="background:#d97706">HIGH</span></td><td><strong>Hardcoded Password</strong></td><td>5</td><td>Hardcoded secret found in source — pattern matches 'Hardcoded Password'.</td><td><div class="owasp">A07:2021 – Identification and Authentication Failures</div></td><td><details><summary>Show fix</summary><div class="fix-cell">Use os.getenv('SECRET_NAME') and store the value in .env (gitignored). Rotate the secret immediately if it was ever committed.</div></details></td><td><span class='src-badge'>🔬</span></td></tr>
+<tr><td><span class="badge" style="background:#d97706">HIGH</span></td><td><strong>Hardcoded Password</strong></td><td>18</td><td>Hardcoded secret found in source — pattern matches 'Hardcoded Password'.</td><td><div class="owasp">A07:2021 – Identification and Authentication Failures</div></td><td><details><summary>Show fix</summary><div class="fix-cell">Use os.getenv('SECRET_NAME') and store the value in .env (gitignored). Rotate the secret immediately if it was ever committed.</div></details></td><td><span class='src-badge'>🔬</span></td></tr>
+<tr><td><span class="badge" style="background:#d97706">HIGH</span></td><td><strong>Insecure Hashing Algorithm</strong></td><td>11</td><td>The hash_password function uses MD5, a cryptographically weak algorithm, for password hashing.</td><td></td><td><details><summary>Show fix</summary><div class="fix-cell">Use a strong, modern, and slow password hashing algorithm like bcrypt, scrypt, or Argon2 (e.g., via passlib).</div></details></td><td><span class='src-badge'>🤖</span></td></tr>
+<tr><td><span class="badge" style="background:#d97706">HIGH</span></td><td><strong>Missing Password Salting</strong></td><td>11</td><td>The hash_password function does not use a unique salt for each password hash.</td><td><div class="owasp">A07:2021 – Identification and Authentication Failures</div></td><td><details><summary>Show fix</summary><div class="fix-cell">Generate a unique, random salt for each password and store it alongside the hash; modern password hashing algorithms handle this internally.</div></details></td><td><span class='src-badge'>🤖</span></td></tr>
+<tr><td><span class="badge" style="background:#d97706">HIGH</span></td><td><strong>Hardcoded Database Password</strong></td><td>19</td><td>A sensitive database password (DB_PASSWORD) is hardcoded directly in the source code.</td><td><div class="owasp">A07:2021 – Identification and Authentication Failures</div></td><td><details><summary>Show fix</summary><div class="fix-cell">Store sensitive configurations and secrets in environment variables, a secure configuration management system, or a properly secured secrets file.</div></details></td><td><span class='src-badge'>🤖</span></td></tr>
+<tr><td><span class="badge" style="background:#d97706">HIGH</span></td><td><strong>Hardcoded API Secret</strong></td><td>20</td><td>A sensitive API secret (API_SECRET) is hardcoded directly in the source code.</td><td><div class="owasp">A07:2021 – Identification and Authentication Failures</div></td><td><details><summary>Show fix</summary><div class="fix-cell">Store sensitive configurations and secrets in environment variables, a secure configuration management system, or a properly secured secrets file.</div></details></td><td><span class='src-badge'>🤖</span></td></tr>
+<tr><td><span class="badge" style="background:#2563eb">MEDIUM</span></td><td><strong>Insecure Password Comparison</strong></td><td>5</td><td>The authenticate function compares the user-provided password directly with what's stored in the database without hashing the input password first using a secure method.</td><td><div class="owasp">A07:2021 – Identification and Authentication Failures</div></td><td><details><summary>Show fix</summary><div class="fix-cell">In the authenticate function, retrieve the stored hash and salt for the given username, then hash the user-provided password with the same algorithm and salt, and compare the newly computed hash with the stored hash.</div></details></td><td><span class='src-badge'>🤖</span></td></tr></tbody>
+</table>
+</div>
+
+</body>
+</html>

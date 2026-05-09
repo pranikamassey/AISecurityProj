@@ -1,0 +1,9 @@
+google-genai>=1.0
+python-dotenv>=1.0
+pydantic>=2.0
+tenacity>=8.0
+rich>=13.0
+colorama>=0.4
+fastapi>=0.100
+uvicorn[standard]>=0.23
+httpx>=0.25
